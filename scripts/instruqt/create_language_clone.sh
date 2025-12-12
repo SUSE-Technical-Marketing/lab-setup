@@ -24,76 +24,106 @@ fi
 # Verification and parameters handling
 
 git rev-parse --is-inside-work-tree &>/dev/null || { echo -e "${ERROR}ERROR${NC}: This command must run on inside the git repository folder" ; exit 1 ; }
-[[ "$1" == "" ]] && { echo -e "${ERROR}ERROR${NC}: arguments not provided\n${PROGRESS}Example${NC}:\n\t$0 <lab folder> <language, 2 letters only>" ; exit 1 ; }
-[[ "$2" == "" ]] && { echo -e "${ERROR}ERROR${NC}: Language not provided\n${PROGRESS}Example${NC}:\n\t$0 <lab folder> <language, 2 letters only>" ; exit 1 ; }
+[[ "$1" == "" ]] && { echo -e "${ERROR}ERROR${NC}: arguments not provided\n${PROGRESS}Example${NC}:\n\t$0 <lab folder> <language, 2 letters only> [<mode>]" ; exit 1 ; }
+[[ "$2" == "" ]] && { echo -e "${ERROR}ERROR${NC}: Language not provided\n${PROGRESS}Example${NC}:\n\t$0 <lab folder> <language, 2 letters only> [<mode>]" ; exit 1 ; }
 
 lab=${1//\.\/}
 lab=${lab//\/}
 lang=${2,,}
+mode=${3:-a}
 
 
-[[ -d "$lab" ]] || { echo -e "${ERROR}ERROR${NC}: lab folder \"${lab}\" not found or not a directory\n${PROGRESS}Example${NC}:\n\t$0 <lab folder> <language, 2 letters only>" ; exit 1 ; }
-[[ ${#lang} -gt 2 ]] && { echo -e "${ERROR}ERROR${NC}: Language be only 2 characters, \"${lang}\" has ${#lang}\n${PROGRESS}Example${NC}:\n\t$0 ${lab} es" ; exit 1 ; }
+[[ -d "$lab" ]] || { echo -e "${ERROR}ERROR${NC}: lab folder \"${lab}\" not found or not a directory\n${PROGRESS}Example${NC}:\n\t$0 <lab folder> <language, 2 letters only> [<mode>]" ; exit 1 ; }
+[[ ${#lang} -gt 2 ]] && { echo -e "${ERROR}ERROR${NC}: Language be only 2 characters, \"${lang}\" has ${#lang}\n${PROGRESS}Example${NC}:\n\t$0 ${lab} es b" ; exit 1 ; }
 [[ -d "${lab}-${lang}" ]] && { echo -e "${ERROR}ERROR${NC}: There is already a lab with the same language \"${lab}-${lang}\""; exit 1 ; }
 
 
 
-# Start the process
-mkdir ${lab}-${lang}
-
-
-cp -r ${lab}/[0-9]* ${lab}-${lang}/
-
-cd  ${lab}
-find -type d |while read line
-do
-  mkdir -p "../${lab}-${lang}/$line"
-done
-
-find assets -type f |while read line
-do
-  ln "../${lab}/$line" "../${lab}-${lang}/$line"
-done
-find track_scripts -type f |while read line
-do
-  ln "../${lab}/$line" "../${lab}-${lang}/$line"
-done
-
-echo -e "${PROGRESS}Change all the text inside the following files:${NC}"
-find [0-9][0-9]* -type d | while read line
-do
-  mkdir -p "../${lab}-${lang}/$line"
-done
-find [0-9][0-9]* -iname '*.md' | while read line
-do
-  cp $line "../${lab}-${lang}/$line"
-  echo -e "\tvim ${lab}-${lang}/$line"
-done
-
-find [0-9][0-9]* -type f -not -iname '*.md' | while read line
-do
-  ln "../${lab}/$line" "../${lab}-${lang}/$line"
-done
-
-cd - >/dev/null
-
-cp ${lab}/config.yml ${lab}-${lang}/
-
-cp ${lab}/track.yml ${lab}-${lang}/
-if grep '^maintenance:' ${lab}-${lang}/track.yml >/dev/null
+if [[ "" == "a" ]]
 then
-  sed 's/^maintenance:.*/maintenance: true/' -i ${lab}-${lang}/track.yml
+  # Start the process
+  mkdir ${lab}-${lang}
+  
+  
+  cp -r ${lab}/[0-9]* ${lab}-${lang}/
+  
+  cd  ${lab}
+  find -type d |while read line
+  do
+    mkdir -p "../${lab}-${lang}/$line"
+  done
+  
+  find assets -type f |while read line
+  do
+    ln "../${lab}/$line" "../${lab}-${lang}/$line"
+  done
+  find track_scripts -type f |while read line
+  do
+    ln "../${lab}/$line" "../${lab}-${lang}/$line"
+  done
+  
+  echo -e "${PROGRESS}Change all the text inside the following files:${NC}"
+  find [0-9][0-9]* -type d | while read line
+  do
+    mkdir -p "../${lab}-${lang}/$line"
+  done
+  find [0-9][0-9]* -iname '*.md' | while read line
+  do
+    cp $line "../${lab}-${lang}/$line"
+    echo -e "\tvim ${lab}-${lang}/$line"
+  done
+  
+  find [0-9][0-9]* -type f -not -iname '*.md' | while read line
+  do
+    ln "../${lab}/$line" "../${lab}-${lang}/$line"
+  done
+  
+  cd - >/dev/null
+  
+  cp ${lab}/config.yml ${lab}-${lang}/
+  
+  cp ${lab}/track.yml ${lab}-${lang}/
+  if grep '^maintenance:' ${lab}-${lang}/track.yml >/dev/null
+  then
+    sed 's/^maintenance:.*/maintenance: true/' -i ${lab}-${lang}/track.yml
+  else
+    echo 'maintenance: true' >> ${lab}-${lang}/track.yml
+  fi
+  sed "s/^\(slug\)\(.*\)/\1\2-${lang}/i;s/^\(title\)\(.*\)/\1\2 - ${lang^^}/i" -i ${lab}-${lang}/track.yml
+  
+  echo -e "${PROGRESS}Change the variables inside config.yml if you wish to personalize it, otherwise just copy it as it is${NC}
+  \tvim  ${lab}-${lang}/config.yml
+  ${PROGRESS}Change the description and other text for the lab found inside track.yml file${NC}:
+  \tvim ${lab}-${lang}/track.yml"
+  
+  echo -e "${PROGRESS}Adding it to git, please push your changes when they are ready for review${NC}"
+  git add ${lab}-${lang}
+  git commit ${lab}-${lang} -m "Added language \"${lang}\" for lab \"${lab}\", first commit"
 else
-  echo 'maintenance: true' >> ${lab}-${lang}/track.yml
+  lst_files=''
+  find ${lab} -iname 'assignment.md' -o -iname 'track.yml' -o -iname 'config.yml' | while read line
+  do
+    if [[ ! -f "${line/./-$lang.}" ]]
+    then
+      cp $line "${line/./-$lang.}"
+      echo -e "\tvim ${line/./-$lang.}"
+      if [[ "${line}" == "${lab}/track.yml" ]]
+      then
+        if grep '^maintenance:' ${lab}/track-${lang}.yml >/dev/null
+        then
+          sed 's/^maintenance:.*/maintenance: true/' -i ${lab}/track-${lang}.yml
+        else
+          echo 'maintenance: true' >> ${lab}/track-${lang}.yml
+        fi
+        sed "s/^\(slug\)\(.*\)/\1\2-${lang}/i;s/^\(title\)\(.*\)/\1\2 - ${lang^^}/i" -i ${lab}/track-${lang}.yml
+      fi
+      git add "${line/./-$lang.}"
+      lst_files="${line/./-$lang.} ${lst_files}"
+    else
+      echo "File already exists: ${line/./-$lang.}"
+    fi
+  done
+
+  git commit -m "Added language \"${lang}\" for lab \"${lab}\", first commit" $lst_files
 fi
-sed "s/^\(slug\)\(.*\)/\1\2-${lang}/i;s/^\(title\)\(.*\)/\1\2 - ${lang^^}/i" -i ${lab}-${lang}/track.yml
-
-echo -e "${PROGRESS}Change the variables inside config.yml if you wish to personalize it, otherwise just copy it as it is${NC}
-\tvim  ${lab}-${lang}/config.yml
-${PROGRESS}Change the description and other text for the lab found inside track.yml file${NC}:
-\tvim ${lab}-${lang}/track.yml"
-
-echo -e "${PROGRESS}Adding it to git, please push your changes when they are ready for review${NC}"
-git add ${lab}-${lang}
-git commit ${lab}-${lang} -m "Added language \"${lang}\" for lab \"${lab}\", first commit"
 
