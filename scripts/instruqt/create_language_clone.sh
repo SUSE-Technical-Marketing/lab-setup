@@ -100,7 +100,8 @@ then
   git add ${lab}-${lang}
   git commit ${lab}-${lang} -m "Added language \"${lang}\" for lab \"${lab}\", first commit"
 else
-  find ${lab} -iname '*.md' -o -iname 'track.yml' -o -iname 'config.yml' | while read line
+  lst_files=''
+  find ${lab} -iname 'assignment.md' -o -iname 'track.yml' -o -iname 'config.yml' | while read line
   do
     if [[ ! -f "${line/./-$lang.}" ]]
     then
@@ -116,15 +117,13 @@ else
         fi
         sed "s/^\(slug\)\(.*\)/\1\2-${lang}/i;s/^\(title\)\(.*\)/\1\2 - ${lang^^}/i" -i ${lab}/track-${lang}.yml
       fi
+      git add "${line/./-$lang.}"
+      lst_files="${line/./-$lang.} ${lst_files}"
+    else
+      echo "File already exists: ${line/./-$lang.}"
     fi
   done
 
-  lst_files=''
-  find ${lab} -iname '*.md' -o -iname 'track.yml' -o -iname 'config.yml' | while read line
-  do
-    git add "${line/./-$lang.}"
-    lst_files="${line/./-$lang.} ${lst_files}"
-  done
   git commit -m "Added language \"${lang}\" for lab \"${lab}\", first commit" $lst_files
 fi
 
