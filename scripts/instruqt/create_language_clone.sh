@@ -102,15 +102,29 @@ then
 else
   find ${lab} -iname '*.md' -o -iname 'track.yml' -o -iname 'config.yml' | while read line
   do
-    cp $line "${line/./-$lang.}"
-    echo -e "\tvim ${line/./-$lang.}"
+    if [[ ! -f "${line/./-$lang.}" ]]
+    then
+      cp $line "${line/./-$lang.}"
+      echo -e "\tvim ${line/./-$lang.}"
+      if [[ "${line}" == "${lab}/track.yml" ]]
+      then
+        if grep '^maintenance:' ${lab}/track-${lang}.yml >/dev/null
+        then
+          sed 's/^maintenance:.*/maintenance: true/' -i ${lab}/track-${lang}.yml
+        else
+          echo 'maintenance: true' >> ${lab}/track-${lang}.yml
+        fi
+        sed "s/^\(slug\)\(.*\)/\1\2-${lang}/i;s/^\(title\)\(.*\)/\1\2 - ${lang^^}/i" -i ${lab}/track-${lang}.yml
+      fi
+    fi
   done
-  if grep '^maintenance:' ${lab}/track-${lang}.yml >/dev/null
-  then
-    sed 's/^maintenance:.*/maintenance: true/' -i ${lab}/track-${lang}.yml
-  else
-    echo 'maintenance: true' >> ${lab}/track-${lang}.yml
-  fi
-  sed "s/^\(slug\)\(.*\)/\1\2-${lang}/i;s/^\(title\)\(.*\)/\1\2 - ${lang^^}/i" -i ${lab}/track-${lang}.yml
+
+  lst_files=''
+  find ${lab} -iname '*.md' -o -iname 'track.yml' -o -iname 'config.yml' | while read line
+  do
+    git add "${line/./-$lang.}"
+    lst_files="${line/./-$lang.} ${lst_files}"
+  done
+  git commit -m "Added language \"${lang}\" for lab \"${lab}\", first commit" $lst_files
 fi
 
